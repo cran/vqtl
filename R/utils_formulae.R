@@ -1,3 +1,21 @@
+formulae_is_valid_ <- function(formulae) {
+
+  if (!is.formulae(formulae)) {
+    return(FALSE)
+  }
+
+  # must have at least one QTL term used appropriately
+  mean.covars <- all.vars(formulae[['mean.formula']][[3]])
+  var.covars <- all.vars(formulae[['var.formula']])
+  if (all(!any(c('mean.QTL.add', 'mean.QTL.dom') %in% mean.covars),
+          !any(c('var.QTL.add', 'var.QTL.dom') %in% var.covars))) {
+    return(FALSE)
+  }
+
+  return(TRUE)
+}
+
+
 is.mean.formula <- function(x) {
 
   # mean.formula must have a LHS, operator, and RHS
@@ -71,31 +89,36 @@ replace.markers.with.add.dom_ <- function(cross,
   mean.marker.covars <- mean.covar.names[mean.covar.names %in% marker.names]
   var.marker.covars <- var.covar.names[var.covar.names %in% marker.names]
 
+  if (class(cross)[1] %in% 'f2') {
+    add_dom <- c('_add', '_dom')
+  }
+  if (class(cross)[1] %in% 'bc') {
+    add_dom <- '_add'
+  }
+
   for (mean.marker.covar in mean.marker.covars) {
     new.terms <- paste0('(', paste0(mean.marker.covar,
-                                    c('_add', '_dom'),
+                                    add_dom,
                                     collapse = '+'), ')')
 
     mean.formula <- stats::reformulate(termlabels = gsub(pattern = mean.marker.covar,
-                                                  replacement = new.terms,
-                                                  x = labels(stats::terms(mean.formula))),
-                                response = mean.formula[[2]])
+                                                         replacement = new.terms,
+                                                         x = labels(stats::terms(mean.formula))),
+                                       response = mean.formula[[2]])
   }
 
   for (var.marker.covar in var.marker.covars) {
     new.terms <- paste0('(', paste0(var.marker.covar,
-                                    c('_add', '_dom'),
+                                    add_dom,
                                     collapse = '+'), ')')
     var.formula <- stats::reformulate(termlabels = gsub(pattern = var.marker.covar,
-                                                 replacement = new.terms,
-                                                 x = labels(stats::terms(var.formula))))
+                                                        replacement = new.terms,
+                                                        x = labels(stats::terms(var.formula))))
   }
 
   return(list(mean.formula = mean.formula,
               var.formula = var.formula))
 }
-
-
 
 
 
@@ -106,41 +129,18 @@ remove.qtl.terms_ <- function(formulae) {
   mean.formula <- formulae[['mean.formula']]
   var.formula <- formulae[['var.formula']]
 
-  mean.covar.name <- all.vars(mean.formula[[3]])
-  var.covar.names <- all.vars(var.formula)
+  mean.formula <- stats::update(old = mean.formula, new = ~ . -mean.QTL.add)
+  mean.formula <- stats::update(old = mean.formula, new = ~ . -mean.QTL.dom)
 
-  # identify terms that are QTL keywords
-  mean.qtl.idxs <- grep(pattern = 'mean.QTL', x = mean.covar.name)
-  var.qtl.idxs <- grep(pattern = 'var.QTL', x = var.covar.names)
+  var.formula <- stats::update(old = var.formula, new = ~ . -var.QTL.add)
+  var.formula <- stats::update(old = var.formula, new = ~ . -var.QTL.dom)
 
-  # if no qtl terms, 'mean.null' is NULL and no mean testing will be done
-  # if no non-qtl terms, rhs is just 1
-  if (length(mean.qtl.idxs) == 0) {
-    mean.null.formula <- mean.formula
-  } else if (length(mean.qtl.idxs) == length(labels(mean.covar.name))) {
-    mean.null.formula <- stats::reformulate(termlabels = '1', response = mean.formula[[2]])
-  } else {
-    mean.null.formula <- stats::formula(stats::drop.terms(termobj = stats::terms(mean.formula),
-                                            dropx = mean.qtl.idxs,
-                                            keep.response = TRUE))
-  }
-
-  # if no qtl terms, 'var.null' is NULL and no var testing will be done
-  # if no non-qtl terms, rhs is just 1
-  if (length(var.qtl.idxs) == 0) {
-    var.null.formula <- var.formula
-  } else if (length(var.qtl.idxs) == length(labels(var.covar.names))) {
-    var.null.formula <- stats::reformulate(termlabels = '1', response = NULL)
-  } else {
-    var.null.formula <- stats::formula(stats::drop.terms(termobj = stats::terms(var.formula),
-                                                         dropx = var.qtl.idxs,
-                                                         keep.response = FALSE))
-  }
-
-  return(list(mean.formula = mean.null.formula,
-              var.formula = var.null.formula))
+  return(list(mean.formula = mean.formula,
+              var.formula = var.formula))
 }
 
 
-
+has_a_random_term <- function(f) {
+  any(grepl(pattern = '\\|', x = labels(stats::terms(f))))
+}
 

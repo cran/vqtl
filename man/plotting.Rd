@@ -17,8 +17,8 @@ mean_var_plot_model_based(cross, phenotype.name, focal.groups = NULL,
   se_line_size = 1, point_size = 1)
 
 phenotype_at_marker_plot(cross, phenotype_name, marker_name, color_by = NULL,
-  point_alpha = 1, Ibars = TRUE, connectIbars = TRUE,
-  genotype_labels = NULL)
+  shape_by = NULL, point_alpha = 1, point_size = 1, Ibars = TRUE,
+  connectIbars = TRUE, genotype_labels = NULL)
 }
 \arguments{
 \item{cross}{the cross}
@@ -50,6 +50,8 @@ phenotype_at_marker_plot(cross, phenotype_name, marker_name, color_by = NULL,
 \item{marker_name}{The marker to stratify observations by}
 
 \item{color_by}{variable name to color the points by}
+
+\item{shape_by}{a discrete phenotype to map to the shape aesthetic of the points}
 
 \item{point_alpha}{alpha value (see-throughness) of the plotted points}
 

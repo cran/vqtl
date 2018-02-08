@@ -8,9 +8,10 @@
   chrs = unique(x[["result"]][["chr"]]), tests_to_plot = c("mQTL", "vQTL",
   "mvQTL"), plotting.units = if (any(grepl(pattern = "empir.p", x =
   names(x[["result"]])))) {     "empir.p" } else {     "LOD" },
-  plot.title = x[["meta"]][["formulae"]][["mean.alt.formula"]][[2]],
+  plot.title = x[["meta"]][["scan.formulae"]][["mean.alt.formula"]][[2]],
   marker.rug = TRUE, ymax = NULL, legend_pos = NULL,
-  alpha_pos = c("left", "right"), ...)
+  alpha_pos = c("left", "right", "none"), alpha_chr = 1, alpha_size = 2,
+  ...)
 }
 \arguments{
 \item{x}{the \code{scanonevar} object to be plotted}
@@ -33,8 +34,11 @@ Defaults to 'LOD'}
 
 \item{legend_pos}{the position of the legend}
 
-\item{alpha_pos}{the position of the alpha values (false positive rate)
-#@param show.equations Optionally, whether to write the modeling equations under the title.  Defaults to TRUE}
+\item{alpha_pos}{the position of the alpha values (false positive rate)}
+
+\item{alpha_chr}{which chromosome to put the alphas (FPRs) on}
+
+\item{alpha_size}{size of annotations for alpha=0.05 and alpha=0.01 lines}
 
 \item{...}{additional plotting arguments}
 }
@@ -58,7 +62,7 @@ none
 }
 \examples{
 set.seed(27599)
-test.cross <- qtl::sim.cross(map = qtl::sim.map(len = rep(20, 5), n.mar = 5), n.ind = 50)
+test.cross <- qtl::sim.cross(map = qtl::sim.map(len = rep(20, 3), n.mar = 5), n.ind = 50)
 test.sov <- scanonevar(cross = test.cross)
 plot(x = test.sov)
 

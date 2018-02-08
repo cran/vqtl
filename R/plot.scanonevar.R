@@ -18,7 +18,8 @@
 #' @param ymax the top of the y axis
 #' @param legend_pos the position of the legend
 #' @param alpha_pos the position of the alpha values (false positive rate)
-#' #@param show.equations Optionally, whether to write the modeling equations under the title.  Defaults to TRUE
+#' @param alpha_size size of annotations for alpha=0.05 and alpha=0.01 lines
+#' @param alpha_chr which chromosome to put the alphas (FPRs) on
 #' @param ... additional plotting arguments
 #'
 #' @return Returns the plot.
@@ -37,7 +38,7 @@
 #'
 #' @examples
 #' set.seed(27599)
-#' test.cross <- qtl::sim.cross(map = qtl::sim.map(len = rep(20, 5), n.mar = 5), n.ind = 50)
+#' test.cross <- qtl::sim.cross(map = qtl::sim.map(len = rep(20, 3), n.mar = 5), n.ind = 50)
 #' test.sov <- scanonevar(cross = test.cross)
 #' plot(x = test.sov)
 #'
@@ -45,16 +46,18 @@ plot.scanonevar <- function(x,
                             y = NULL,
                             chrs = unique(x[['result']][['chr']]),
                             tests_to_plot = c('mQTL', 'vQTL', 'mvQTL'),
-                            plotting.units = if(any(grepl(pattern = 'empir.p', x = names(x[['result']])))) {
+                            plotting.units = if (any(grepl(pattern = 'empir.p', x = names(x[['result']])))) {
                               'empir.p'
                             } else {
                               'LOD'
                             },
-                            plot.title = x[['meta']][['formulae']][['mean.alt.formula']][[2]],
+                            plot.title = x[['meta']][['scan.formulae']][['mean.alt.formula']][[2]],
                             marker.rug = TRUE,
                             ymax = NULL,
                             legend_pos = NULL,
-                            alpha_pos = c('left', 'right'),
+                            alpha_pos = c('left', 'right', 'none'),
+                            alpha_chr = 1,
+                            alpha_size = 2,
                             ...) {
 
   chr <- lab <- pos <- val <- test <- loc.name <- 'fake_global_for_CRAN'
@@ -79,7 +82,9 @@ plot.scanonevar <- function(x,
                                     tests_to_plot = tests_to_plot,
                                     plotting.units = plotting.units)
   to.plot <- dplyr::mutate(.data = to.plot,
-                           chr = factor(x = chr, levels = gtools::mixedsort(unique(chr))))
+                           chr = factor(x = chr, levels = gtools::mixedsort(unique(chr)))) %>%
+    dplyr::group_by(chr) %>%
+    dplyr::mutate(pos = pos - min(pos))
 
   p <- ggplot2::ggplot(data = to.plot)
 
@@ -90,22 +95,29 @@ plot.scanonevar <- function(x,
   } else {
     p <- p +
       ggplot2::ylab(label = '-log10(p)') +
-      ggplot2::geom_hline(yintercept = -log10(c(0.05, 0.01)), color = 'gray') +
-      ggplot2::geom_text(mapping = ggplot2::aes(x = x,
-                                                y = y,
-                                                label = lab),
-                         data = data.frame(x = switch(EXPR = alpha_pos,
-                                                      left = 0,
-                                                      right = max(to.plot$pos[to.plot$chr == chrs[1]])),
-                                           y = -log10(c(0.05, 0.01)),
-                                           lab = c("alpha == 0.05",
-                                                   "alpha == 0.01"),
-                                           chr = chrs[1]),
-                         vjust = 0,
-                         hjust = switch(EXPR = alpha_pos,
-                                        left = 0,
-                                        right = 1),
-                         parse = TRUE)
+      ggplot2::geom_hline(yintercept = -log10(c(0.05, 0.01)), color = 'gray')
+
+    if (alpha_pos != 'none') {
+      p <- p +
+        ggplot2::geom_text(mapping = ggplot2::aes(x = x,
+                                                  y = y,
+                                                  label = lab),
+                           data = data.frame(x = switch(EXPR = alpha_pos,
+                                                        left = 0,
+                                                        right = max(to.plot$pos[to.plot$chr == chrs[1]])),
+                                             y = -log10(c(0.05, 0.01)),
+                                             lab = c("alpha == 0.05",
+                                                     "alpha == 0.01"),
+                                             chr = as.character(alpha_chr)),
+                           size = alpha_size,
+                           vjust = 0,
+                           hjust = switch(EXPR = alpha_pos,
+                                          left = 0,
+                                          right = 1),
+                           parse = TRUE)
+    }
+
+    p <- p +
       ggplot2::theme(panel.grid.major.y = ggplot2::element_blank(),
                      axis.text.y = ggplot2::element_blank(),
                      axis.ticks.y = ggplot2::element_blank())
@@ -146,8 +158,10 @@ plot.scanonevar <- function(x,
   if (marker.rug) {
     # true.markers <- result %>% dplyr::filter(pos != round(pos))
     true.markers <- result %>%
-      dplyr::filter(!grepl(pattern = '^chr[0-9]*_loc[0-9]*$', x = loc.name)) %>%
-      dplyr::mutate(chr = factor(x = chr, levels = gtools::mixedsort(unique(chr))))
+      dplyr::filter(loc.name %in% qtl::markernames(cross = x[['meta']][['cross']])) %>%
+      dplyr::mutate(chr = factor(x = chr, levels = gtools::mixedsort(unique(chr)))) %>%
+      dplyr::group_by(chr) %>%
+      dplyr::mutate(pos = pos - min(pos))
       #dplyr::mutate(chr = stringr::str_pad(string = chr, width = 2, pad = '0'))
     p <- p + ggplot2::geom_rug(mapping = ggplot2::aes(x = pos),
                                data = true.markers)
@@ -178,25 +192,25 @@ pull.plotting.columns_ <- function(sov, so, tests_to_plot, plotting.units) {
   # pull appropriate data into plotting columns
   if (plotting.units == 'LOD') {
 
-    if (!is.null(sov[['mean.lod']]) & 'mQTL' %in% tests_to_plot) {
+    if (!is.null(sov[['mQTL.lod']]) & 'mQTL' %in% tests_to_plot) {
       to.plot <- dplyr::bind_rows(to.plot,
                                   dplyr::mutate(.data = base.to.plot,
                                                 test = 'mQTL',
-                                                val = sov[['mean.lod']]))
+                                                val = sov[['mQTL.lod']]))
     }
 
-    if (!is.null(sov[['var.lod']]) & 'vQTL' %in% tests_to_plot) {
+    if (!is.null(sov[['vQTL.lod']]) & 'vQTL' %in% tests_to_plot) {
       to.plot <- dplyr::bind_rows(to.plot,
                                   dplyr::mutate(.data = base.to.plot,
                                                 test = 'vQTL',
-                                                val = sov[['var.lod']]))
+                                                val = sov[['vQTL.lod']]))
     }
 
-    if (!is.null(sov[['joint.lod']]) & 'mvQTL' %in% tests_to_plot) {
+    if (!is.null(sov[['mvQTL.lod']]) & 'mvQTL' %in% tests_to_plot) {
       to.plot <- dplyr::bind_rows(to.plot,
                                   dplyr::mutate(.data = base.to.plot,
                                                 test = 'mvQTL',
-                                                val = sov[['joint.lod']]))
+                                                val = sov[['mvQTL.lod']]))
     }
 
     if (!is.null(so)) {
@@ -211,13 +225,13 @@ pull.plotting.columns_ <- function(sov, so, tests_to_plot, plotting.units) {
 
     to.plot <- dplyr::bind_rows(dplyr::mutate(.data = base.to.plot,
                                               test = 'mQTL',
-                                              val = -log10(sov[['mean.asymp.p']])),
+                                              val = -log10(sov[['mQTL.asymp.p']])),
                                 dplyr::mutate(.data = base.to.plot,
                                               test = 'vQTL',
-                                              val = -log10(sov[['var.asymp.p']])),
+                                              val = -log10(sov[['vQTL.asymp.p']])),
                                 dplyr::mutate(.data = base.to.plot,
                                               test = 'mvQTL',
-                                              val = -log10(sov[['joint.asymp.p']])))
+                                              val = -log10(sov[['mvQTL.asymp.p']])))
     if (!is.null(so)) {
       to.plot <- dplyr::bind_rows(to.plot,
                                   dplyr::mutate(.data = base.to.plot,
@@ -230,13 +244,13 @@ pull.plotting.columns_ <- function(sov, so, tests_to_plot, plotting.units) {
 
     to.plot <- dplyr::bind_rows(dplyr::mutate(.data = base.to.plot,
                                               test = 'mQTL',
-                                              val = -log10(sov[['mean.empir.p']])),
+                                              val = -log10(sov[['mQTL.empir.p']])),
                                 dplyr::mutate(.data = base.to.plot,
                                               test = 'vQTL',
-                                              val = -log10(sov[['var.empir.p']])),
+                                              val = -log10(sov[['vQTL.empir.p']])),
                                 dplyr::mutate(.data = base.to.plot,
                                               test = 'mvQTL',
-                                              val = -log10(sov[['joint.empir.p']])))
+                                              val = -log10(sov[['mvQTL.empir.p']])))
 
     if (!is.null(so)) {
       if ('empir.p' %in% names(so)) {
