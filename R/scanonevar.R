@@ -229,8 +229,6 @@ scanonevar_ <- function(meta,
   # loop over loci
   for (loc.idx in 1:nrow(result)) {
 
-    # browser()
-
     # fill modeling.df with the genoprobs at the focal loc
     this.loc.name <- result[['loc.name']][loc.idx]
     loc.genoprobs <- dplyr::filter(.data = meta$genoprob.df,
